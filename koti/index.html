@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#FFE3C4">
+<link rel="icon" href="data:,">
+<title>Котята</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="wall"></div>
+
+<div class="hud">
+  <div class="pill lvl"><svg viewBox="0 0 24 24"><path d="M12 2.8l2.75 5.9 6.45.8-4.8 4.35 1.3 6.35L12 17.2 6.3 20.2l1.3-6.35L2.8 9.5l6.45-.8L12 2.8z"/></svg><span id="lvl">1</span></div>
+  <div class="pill pairs">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><ellipse cx="12" cy="15.6" rx="5" ry="4.2"/><ellipse cx="6.2" cy="9.4" rx="2.3" ry="2.9" transform="rotate(-18 6.2 9.4)"/><ellipse cx="10" cy="6.1" rx="2.2" ry="3" transform="rotate(-6 10 6.1)"/><ellipse cx="14.2" cy="6.3" rx="2.2" ry="3" transform="rotate(8 14.2 6.3)"/><ellipse cx="17.9" cy="9.6" rx="2.3" ry="2.9" transform="rotate(20 17.9 9.6)"/></g></svg>
+    <span id="found">0</span><span class="of">/</span><span id="total">3</span>
+  </div>
+</div>
+
+<main class="board" id="board"></main>
+
+<div class="tools">
+  <button class="rbtn" id="home" aria-label="Домой">
+    <svg viewBox="0 0 24 24"><path d="M4 11.2 12 4l8 7.2M6.5 10v9h4v-5h3v5h4v-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <button class="rbtn" id="sound" aria-label="Звук">
+    <svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L13 5v14L7.5 14.5H4z" fill="currentColor"/><path d="M16.6 8.4a5 5 0 0 1 0 7.2M19 6a8.4 8.4 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+  </button>
+</div>
+
+<div class="ov" id="ov"></div>
+
+<script src="game.js"></script>
+</body>
+</html>

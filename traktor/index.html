@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#8ED7F0">
+<link rel="icon" href="data:,">
+<title>Трактор</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<div class="hud">
+  <div class="pill lvl" id="lvlPill">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.75 5.9 6.45.8-4.8 4.35 1.3 6.35L12 17.2 6.3 20.2l1.3-6.35L2.8 9.5l6.45-.8L12 2.8z"/></svg>
+    <span id="lvl">1</span>
+  </div>
+  <div class="pill goal" id="goalPill">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16l-1.6 9.2a2 2 0 0 1-2 1.8H7.6a2 2 0 0 1-2-1.8L4 9zm3-3a3 3 0 0 1 6 0m1 0a3 3 0 0 1 6 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    <span id="got">0</span><span class="of">/</span><span id="need">8</span>
+  </div>
+</div>
+
+<div class="tools">
+  <button class="rbtn" id="sound" aria-label="Звук">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L13 5v14L7.5 14.5H4z" fill="currentColor"/><path d="M16.6 8.4a5 5 0 0 1 0 7.2M19 6a8.4 8.4 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+  </button>
+  <button class="rbtn" id="home" aria-label="Домой">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4l8 7.2M6.5 10v9h4v-5h3v5h4v-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+</div>
+
+<div class="ov" id="ov" aria-live="polite"></div>
+
+<script src="game.js"></script>
+</body>
+</html>
