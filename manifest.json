@@ -1,0 +1,16 @@
+{
+  "name": "Игры Тимура",
+  "short_name": "Игры",
+  "description": "Четыре маленькие игры для сына: котята 3D, трактор, котята и пицца",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFE3BF",
+  "theme_color": "#A9E2F0",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
