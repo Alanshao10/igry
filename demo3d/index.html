@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#8FD8F0">
+<title>3D демо</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%;overflow:hidden;background:#8FD8F0}
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .vignette{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 44%,rgba(0,0,0,0) 52%,rgba(8,42,54,.26) 100%)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="vignette"></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+/* ---------- рендер ---------- */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xDFF0E4, 150, 420);
+
+const camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.1, 500);
+const CAM_FROM = new THREE.Vector3(12, 7, 21);
+const CAM_TO = new THREE.Vector3(0, 2.6, -4);
+camera.position.copy(CAM_FROM);
+camera.lookAt(CAM_TO);
+
+/* ---------- небо ---------- */
+function skyTexture() {
+  const c = document.createElement('canvas');
+  c.width = 8; c.height = 512;
+  const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0, '#4FB6DF');
+  g.addColorStop(0.40, '#9FDDF0');
+  g.addColorStop(0.68, '#D8F0EC');
+  g.addColorStop(0.86, '#E9F4DE');
+  g.addColorStop(1, '#DFF0E4');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 8, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+scene.background = skyTexture();
+
+/* ---------- мультяшный градиент ---------- */
+const steps = new Uint8Array([70, 120, 170, 215, 255]);
+const gradientMap = new THREE.DataTexture(steps, steps.length, 1, THREE.RedFormat);
+gradientMap.minFilter = THREE.NearestFilter;
+gradientMap.magFilter = THREE.NearestFilter;
+gradientMap.needsUpdate = true;
+
+const toon = (color, extra = {}) =>
+  new THREE.MeshToonMaterial({ color, gradientMap, ...extra });
+
+const outlineMat = new THREE.MeshBasicMaterial({ color: 0x1D2B26, side: THREE.BackSide });
+
+function ink(mesh, k = 1.04) {
+  const o = new THREE.Mesh(mesh.geometry, outlineMat);
+  o.scale.setScalar(k);
+  o.castShadow = false;
+  o.receiveShadow = false;
+  o.renderOrder = -1;
+  mesh.add(o);
+  return mesh;
+}
+
+const rbox = (w, h, d, r = 0.15, seg = 3) => new RoundedBoxGeometry(w, h, d, seg, r);
+
+/* ---------- свет ---------- */
+scene.add(new THREE.HemisphereLight(0xD8F1FF, 0x6FAE5A, 1.15));
+const amb = new THREE.AmbientLight(0xFFFFFF, 0.25);
+scene.add(amb);
+
+const sun = new THREE.DirectionalLight(0xFFF0C8, 2.4);
+sun.position.set(-16, 20, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -26;
+sun.shadow.camera.right = 26;
+sun.shadow.camera.top = 26;
+sun.shadow.camera.bottom = -26;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 70;
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.035;
+sun.shadow.radius = 3;
+scene.add(sun);
+
+// тёплый контровой свет для объёма
+const rim = new THREE.DirectionalLight(0xFFD9A0, 0.85);
+rim.position.set(14, 10, -14);
+scene.add(rim);
+
+/* ---------- земля ---------- */
+function grassTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const x = c.getContext('2d');
+  x.fillStyle = '#6FC65E';
+  x.fillRect(0, 0, 256, 256);
+  x.fillStyle = '#67BE55';
+  for (let i = -256; i < 512; i += 96) {
+    x.beginPath();
+    x.moveTo(i, 0);
+    x.lineTo(i + 34, 0);
+    x.lineTo(i + 34 + 256, 256);
+    x.lineTo(i + 256, 256);
+    x.closePath();
+    x.fill();
+  }
+  for (let i = 0; i < 500; i++) {
+    x.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,.06)' : 'rgba(0,70,0,.06)';
+    x.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(16, 16);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(400, 64),
+  toon(0xFFFFFF, { map: grassTexture() }),
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+/* ---------- дальние холмы ---------- */
+{
+  const hillMat = toon(0x93C9A8);
+  const hillMat2 = toon(0x7FBD94);
+  const hills = [
+    [-52, -88, 44, 11, 30, hillMat],
+    [-10, -104, 54, 13, 34, hillMat2],
+    [34, -92, 46, 10, 28, hillMat],
+    [74, -112, 58, 14, 38, hillMat2],
+    [-92, -116, 56, 12, 36, hillMat2],
+  ];
+  for (const [x, z, sx, sy, sz, m] of hills) {
+    const h = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), m);
+    h.position.set(x, -1, z);
+    h.scale.set(sx, sy, sz);
+    scene.add(h);
+  }
+}
+
+/* ---------- дорожка ---------- */
+{
+  const pts = [[-12, 18], [-8, 11], [-4, 5], [0, 0], [3, -6], [5.5, -12], [6.5, -15.5]]
+    .map(([x, z]) => new THREE.Vector3(x, 0, z));
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const N = 70, W = 3.3;
+  const pos = [], idx = [], uv = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const p = curve.getPoint(t);
+    const dir = curve.getTangent(t).normalize();
+    const sx = -dir.z * (W / 2), sz = dir.x * (W / 2);
+    pos.push(p.x + sx, 0.05, p.z + sz);
+    pos.push(p.x - sx, 0.05, p.z - sz);
+    uv.push(0, t, 1, t);
+    if (i < N) {
+      const a = i * 2;
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  const road = new THREE.Mesh(geo, toon(0xD9B26E, { side: THREE.DoubleSide }));
+  road.receiveShadow = true;
+  scene.add(road);
+}
+
+/* ---------- дерево ---------- */
+const barkMat = toon(0x8A5A34);
+const leafMat = toon(0x3FA45F);
+const leafMat2 = toon(0x55BD72);
+
+function tree(x, z, s = 1, hue = 0) {
+  const g = new THREE.Group();
+  g.position.set(x, 0, z);
+  g.scale.setScalar(s);
+  g.rotation.y = Math.random() * 6.28;
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 1.7, 10), barkMat);
+  trunk.position.y = 0.85;
+  trunk.castShadow = true;
+  ink(trunk, 1.06);
+  g.add(trunk);
+
+  const crowns = [
+    [0, 2.5, 0, 1.35, leafMat],
+    [-0.75, 2.15, 0.25, 0.95, leafMat2],
+    [0.7, 2.25, -0.2, 1.0, leafMat2],
+    [0.1, 3.25, 0.05, 0.85, leafMat],
+  ];
+  for (const [cx, cy, cz, r, m] of crowns) {
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), hue ? leafMat2 : m);
+    b.position.set(cx, cy, cz);
+    b.castShadow = true;
+    ink(b, 1.05);
+    g.add(b);
+  }
+  scene.add(g);
+  return g;
+}
+
+/* ---------- амбар ---------- */
+{
+  const barn = new THREE.Group();
+  barn.position.set(4.4, 0, -15.5);
+  barn.rotation.y = -0.42;
+
+  const walls = new THREE.Mesh(rbox(5.4, 3.2, 4.2, 0.1), toon(0xD9483B));
+  walls.position.y = 1.6;
+  walls.castShadow = true;
+  walls.receiveShadow = true;
+  ink(walls, 1.025);
+  barn.add(walls);
+
+  const roofL = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.22, 4.8), toon(0x8E3A31));
+  roofL.position.set(-1.25, 3.9, 0);
+  roofL.rotation.z = 0.62;
+  roofL.castShadow = true;
+  ink(roofL, 1.05);
+  barn.add(roofL);
+
+  const roofR = roofL.clone();
+  roofR.position.x = 1.25;
+  roofR.rotation.z = -0.62;
+  barn.add(roofR);
+
+  const door = new THREE.Mesh(rbox(1.9, 2.2, 0.2, 0.06), toon(0xF6E3C4));
+  door.position.set(0, 1.15, 2.1);
+  ink(door, 1.03);
+  barn.add(door);
+
+  const frameMat = toon(0xF6E3C4);
+  for (const x of [-1.9, 1.9]) {
+    const w = new THREE.Mesh(rbox(0.9, 0.9, 0.18, 0.05), frameMat);
+    w.position.set(x, 1.9, 2.15);
+    ink(w, 1.03);
+    barn.add(w);
+  }
+  scene.add(barn);
+}
+
+/* ---------- трактор ---------- */
+const tractor = new THREE.Group();
+const wheels = [];
+let smokeSource = null;
+
+{
+  const blue = toon(0x2F6BD8), blueDark = toon(0x2450A8), orange = toon(0xFF8A3D);
+  const tire = toon(0x2A333F), hub = toon(0xFFC93C), glass = toon(0x7FC4E0);
+  const white = toon(0xFFFFFF), black = toon(0x15202B), cream = toon(0xFFF3C8);
+
+  const body = new THREE.Mesh(rbox(1.75, 0.95, 3.1, 0.3), blue);
+  body.position.set(0, 1.22, 0);
+  body.castShadow = true;
+  ink(body, 1.03);
+  tractor.add(body);
+
+  const hood = new THREE.Mesh(rbox(1.5, 0.8, 1.25, 0.26), blue);
+  hood.position.set(0, 1.42, 1.0);
+  hood.castShadow = true;
+  ink(hood, 1.03);
+  tractor.add(hood);
+
+  const cabin = new THREE.Mesh(rbox(1.55, 1.15, 1.3, 0.28), blueDark);
+  cabin.position.set(0, 2.12, -0.55);
+  cabin.castShadow = true;
+  ink(cabin, 1.03);
+  tractor.add(cabin);
+
+  const glassPane = new THREE.Mesh(rbox(1.32, 0.92, 0.12, 0.12), glass);
+  glassPane.position.set(0, 2.14, 0.13);
+  tractor.add(glassPane);
+
+  // глаза
+  for (const sx of [-0.33, 0.33]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.19, 20, 16), white);
+    eye.position.set(sx, 2.22, 0.2);
+    tractor.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.095, 16, 12), black);
+    pupil.position.set(sx + (sx < 0 ? 0.02 : -0.02), 2.21, 0.35);
+    tractor.add(pupil);
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.034, 8, 8), new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
+    glint.position.set(sx + (sx < 0 ? 0.05 : 0.01), 2.26, 0.4);
+    tractor.add(glint);
+  }
+  // улыбка
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.028, 8, 20, Math.PI), black);
+  smile.position.set(0, 1.99, 0.2);
+  smile.rotation.z = Math.PI;
+  tractor.add(smile);
+
+  // крыша
+  const roof = new THREE.Mesh(rbox(1.75, 0.16, 1.5, 0.08), orange);
+  roof.position.set(0, 2.76, -0.55);
+  roof.castShadow = true;
+  ink(roof, 1.04);
+  tractor.add(roof);
+
+  // труба
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.075, 0.75, 10), toon(0x9AA5B1));
+  pipe.position.set(0.55, 1.95, 0.72);
+  pipe.castShadow = true;
+  tractor.add(pipe);
+  smokeSource = new THREE.Vector3(0.55, 2.35, 0.72);
+
+  // фары
+  for (const sx of [-0.42, 0.42]) {
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 14), cream);
+    lamp.rotation.x = Math.PI / 2;
+    lamp.position.set(sx, 1.5, 1.64);
+    tractor.add(lamp);
+  }
+
+  // колёса
+  function wheel(x, y, z, r, w) {
+    const g = new THREE.Group();
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 22), tire);
+    t.rotation.z = Math.PI / 2;
+    t.castShadow = true;
+    ink(t, 1.05);
+    g.add(t);
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.45, r * 0.45, w + 0.02, 18), hub);
+    h.rotation.z = Math.PI / 2;
+    g.add(h);
+    g.position.set(x, y, z);
+    tractor.add(g);
+    wheels.push(g);
+    return g;
+  }
+  wheel(-0.98, 0.78, -0.95, 0.78, 0.5);
+  wheel(0.98, 0.78, -0.95, 0.78, 0.5);
+  wheel(-0.85, 0.5, 1.15, 0.5, 0.34);
+  wheel(0.85, 0.5, 1.15, 0.5, 0.34);
+
+  tractor.position.set(-2.2, 0, 6.8);
+  tractor.rotation.y = 0.35;
+  tractor.scale.setScalar(1.25);
+  scene.add(tractor);
+}
+
+/* ---------- дым ---------- */
+const puffs = [];
+{
+  const puffMat = new THREE.MeshBasicMaterial({ color: 0xEFF4F8, transparent: true, opacity: 0.85 });
+  for (let i = 0; i < 7; i++) {
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 10), puffMat.clone());
+    p.userData.t = i / 7;
+    scene.add(p);
+    puffs.push(p);
+  }
+}
+
+/* ---------- деревья и кусты ---------- */
+tree(-14, -3, 1.2);
+tree(-17, 6, 0.9, 1);
+tree(-10, -12, 1.1);
+tree(-6, -18, 1.25);
+tree(13, -6, 1.1);
+tree(17, 3, 0.95, 1);
+tree(9, -18, 1.2);
+tree(20, -10, 1.0);
+tree(-2, -22, 1.3, 1);
+tree(4, -24, 1.15);
+
+/* ---------- забор ---------- */
+{
+  const woodMat = toon(0xC98F5A);
+  const postGeo = new THREE.BoxGeometry(0.16, 1.0, 0.16);
+  const railGeo = new THREE.BoxGeometry(0.09, 0.1, 1.9);
+  for (let i = 0; i < 6; i++) {
+    const x = 3.2 + i * 1.15;
+    const z = 4.2 - i * 0.85;
+    const p = new THREE.Mesh(postGeo, woodMat);
+    p.position.set(x, 0.5, z);
+    p.castShadow = true;
+    ink(p, 1.1);
+    scene.add(p);
+    if (i < 5) {
+      const r = new THREE.Mesh(railGeo, woodMat);
+      r.position.set(x + 0.57, 0.72, z - 0.42);
+      r.rotation.y = Math.atan2(1.15, -0.85);
+      r.castShadow = true;
+      scene.add(r);
+    }
+  }
+}
+
+/* ---------- трава на переднем плане ---------- */
+{
+  const bladeMat = toon(0x5FBB50);
+  const bladeGeo = new THREE.ConeGeometry(0.07, 0.55, 5);
+  for (let i = 0; i < 40; i++) {
+    const b = new THREE.Mesh(bladeGeo, bladeMat);
+    b.position.set(-12 + Math.random() * 26, 0.27, 12 + Math.random() * 7);
+    b.rotation.z = (Math.random() - 0.5) * 0.5;
+    b.rotation.y = Math.random() * 3;
+    b.scale.setScalar(0.8 + Math.random() * 0.8);
+    b.castShadow = true;
+    scene.add(b);
+  }
+}
+
+/* ---------- сено и цветы ---------- */
+{
+  const hayMat = toon(0xE8C25E);
+  for (const [x, z, r] of [[9.4, 2.0, 0.6], [10.6, 0.9, 0.5]]) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.15, 16), hayMat);
+    b.rotation.z = Math.PI / 2;
+    b.rotation.y = 0.5;
+    b.position.set(x, r, z);
+    b.castShadow = true;
+    ink(b, 1.05);
+    scene.add(b);
+  }
+}
+
+{
+  const petals = [0xFF8FB0, 0xFFD166, 0xFF7A5C, 0xFFFFFF];
+  const stemMat = toon(0x3E9B4E);
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const d = 3.5 + Math.random() * 9;
+    const x = Math.cos(a) * d;
+    const z = Math.sin(a) * d + 2;
+    const g = new THREE.Group();
+    g.position.set(x, 0, z);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.3, 5), stemMat);
+    stem.position.y = 0.15;
+    g.add(stem);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), toon(petals[i % 4]));
+    head.position.y = 0.34;
+    g.add(head);
+    scene.add(g);
+  }
+}
+
+/* ---------- облака ---------- */
+const clouds = [];
+{
+  const cloudMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.95 });
+  for (let i = 0; i < 6; i++) {
+    const c = new THREE.Group();
+    const n = 4 + ((Math.random() * 3) | 0);
+    for (let j = 0; j < n; j++) {
+      const s = 1.1 + Math.random() * 1.5;
+      const b = new THREE.Mesh(new THREE.SphereGeometry(s, 14, 10), cloudMat);
+      b.position.set(j * 1.35 - n * 0.6, Math.random() * 0.6, Math.random() * 0.8);
+      c.add(b);
+    }
+    c.position.set(-28 + i * 17, 12 + Math.random() * 5, -58 - Math.random() * 28);
+    c.scale.setScalar(1.6 + Math.random() * 0.9);
+    scene.add(c);
+    clouds.push(c);
+  }
+}
+
+/* ---------- солнце ---------- */
+{
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(128, 128, 10, 128, 128, 126);
+  g.addColorStop(0, 'rgba(255,252,225,1)');
+  g.addColorStop(0.22, 'rgba(255,244,180,.95)');
+  g.addColorStop(0.45, 'rgba(255,226,130,.45)');
+  g.addColorStop(1, 'rgba(255,220,120,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  spr.position.set(-34, 15, -62);
+  spr.scale.set(18, 18, 1);
+  scene.add(spr);
+}
+
+/* ---------- птицы ---------- */
+const birds = [];
+{
+  const birdMat = new THREE.MeshBasicMaterial({ color: 0x35424E });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.12), birdMat);
+      w.position.x = s * 0.26;
+      w.rotation.z = s * 0.35;
+      g.add(w);
+    }
+    g.position.set(-8 + i * 4, 12 + i * 1.2, -22 - i * 3);
+    g.userData = { t: Math.random() * 6.28, sx: -8 + i * 4, y: 12 + i * 1.2 };
+    scene.add(g);
+    birds.push(g);
+  }
+}
+
+/* ---------- бабочки ---------- */
+const butterflies = [];
+{
+  const cols = [0xFFD166, 0xFF8FB0, 0x9BE0F0];
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: cols[i], side: THREE.DoubleSide });
+    for (const s of [-1, 1]) {
+      const wing = new THREE.Mesh(new THREE.CircleGeometry(0.16, 10), mat);
+      wing.position.x = s * 0.15;
+      wing.rotation.y = s * 0.9;
+      g.add(wing);
+      g.userData['w' + (s > 0 ? 'r' : 'l')] = wing;
+    }
+    g.position.set(-2 + i * 2.4, 1.5 + Math.random(), 4 - i * 1.5);
+    g.userData.t = Math.random() * 6.28;
+    scene.add(g);
+    butterflies.push(g);
+  }
+}
+
+/* ---------- размер ---------- */
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  camera.aspect = w / h;
+  camera.fov = h > w ? 46 : 36;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ---------- управление ---------- */
+let drag = null;
+let orbit = 0;
+canvas.addEventListener('pointerdown', (e) => {
+  drag = { x: e.clientX, o: orbit };
+  canvas.setPointerCapture?.(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  orbit = Math.max(-0.5, Math.min(0.5, drag.o + (e.clientX - drag.x) * 0.004));
+});
+canvas.addEventListener('pointerup', () => { drag = null; });
+canvas.addEventListener('pointercancel', () => { drag = null; });
+
+/* ---------- анимация ---------- */
+const clock = new THREE.Clock();
+
+function frame() {
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // колеса
+  for (const w of wheels) w.rotation.x -= dt * 1.6;
+
+  // лёгкое покачивание
+  tractor.position.y = Math.sin(t * 2.2) * 0.035;
+  tractor.rotation.z = Math.sin(t * 1.7) * 0.012;
+
+  // дым
+  for (const p of puffs) {
+    p.userData.t += dt * 0.42;
+    if (p.userData.t > 1) p.userData.t -= 1;
+    const k = p.userData.t;
+    const base = new THREE.Vector3(smokeSource.x, smokeSource.y, smokeSource.z);
+    base.applyEuler(tractor.rotation);
+    base.multiplyScalar(tractor.scale.x).add(tractor.position);
+    p.position.set(base.x + k * 1.2, base.y + k * 2.4, base.z - k * 0.6);
+    const s = 0.5 + k * 2.2;
+    p.scale.setScalar(s);
+    p.material.opacity = 0.7 * (1 - k) * (k < 0.08 ? k / 0.08 : 1);
+  }
+
+  // облака
+  for (const c of clouds) {
+    c.position.x += dt * 0.35;
+    if (c.position.x > 34) c.position.x = -34;
+  }
+
+  // птицы
+  for (const b of birds) {
+    const u = b.userData;
+    u.t += dt * 0.8;
+    b.position.x = u.sx + Math.sin(u.t * 0.6) * 3;
+    b.position.y = u.y + Math.sin(u.t * 2) * 0.15;
+    b.rotation.z = Math.sin(u.t * 3) * 0.2;
+  }
+
+  // бабочки
+  for (const b of butterflies) {
+    const u = b.userData;
+    u.t += dt * 2.4;
+    b.position.y += Math.sin(u.t) * 0.006;
+    b.position.x += Math.cos(u.t * 0.7) * 0.004;
+    if (u.wl) u.wl.rotation.y = -0.9 + Math.sin(u.t * 6) * 0.5;
+    if (u.wr) u.wr.rotation.y = 0.9 - Math.sin(u.t * 6) * 0.5;
+  }
+
+  // камера: мягкий параллакс + поворот рукой
+  camera.position.set(
+    CAM_FROM.x + Math.sin(t * 0.18) * 0.22 + orbit * 4.2,
+    CAM_FROM.y + Math.sin(t * 0.23) * 0.12,
+    CAM_FROM.z + Math.cos(t * 0.15) * 0.18,
+  );
+  camera.lookAt(CAM_TO);
+
+  renderer.render(scene, camera);
+}
+frame();
+
+window.__demo = { ready: true, three: THREE.REVISION };
+</script>
+</body>
+</html>
